@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cafetería Real</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f3f2f1;
+      margin: 0;
+      padding: 0;
+      color: #333;
+    }
+    header {
+      background: #5d4037;
+      color: white;
+      padding: 1rem;
+      text-align: center;
+      font-size: 1.5rem;
+    }
+    main {
+      max-width: 700px;
+      margin: 1rem auto;
+      padding: 1rem;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .hidden { display: none; }
+    input, select, button {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+    button {
+      background: #6d4c41;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    .order {
+      border-bottom: 1px solid #eee;
+      padding: 5px;
+    }
+    .role-panel {
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+<header>Cafetería Real</header>
+<main>
+  <div id="auth">
+    <input type="text" id="name" placeholder="Nombre completo">
+    <input type="email" id="email" placeholder="Correo electrónico">
+    <input type="password" id="pass" placeholder="Contraseña">
+    <select id="role">
+      <option value="cliente">Cliente</option>
+      <option value="barista">Barista</option>
+      <option value="cajero">Cajero</option>
+      <option value="repartidor">Repartidor</option>
+      <option value="dueno">Dueño</option>
+    </select>
+    <button onclick="register()">Registrarse</button>
+    <button onclick="login()">Iniciar sesión</button>
+    <div id="authMsg"></div>
+  </div>
+
+  <div id="panel" class="hidden">
+    <p>Bienvenido, <span id="userName"></span> (<span id="userRole"></span>)</p>
+    <button onclick="logout()">Cerrar sesión</button>
+    
+    <div id="clientePanel" class="role-panel hidden">
+      <h3>Hacer pedido</h3>
+      <input id="pedidoInput" placeholder="Ej: Café con leche">
+      <button onclick="hacerPedido()">Enviar pedido</button>
+    </div>
+
+    <div id="empleadoPanel" class="role-panel hidden">
+      <h3>Pedidos recibidos</h3>
+      <div id="listaPedidos"></div>
+    </div>
+
+    <div id="duenoPanel" class="role-panel hidden">
+      <h3>Gestión completa</h3>
+      <div id="duenoPedidos"></div>
+    </div>
+  </div>
+</main>
+<script>
+  const users = JSON.parse(localStorage.getItem('caf_users') || '[]');
+  let pedidos = JSON.parse(localStorage.getItem('caf_pedidos') || '[]');
+  let currentUser = JSON.parse(localStorage.getItem('caf_user')) || null;
+
+  function save() {
+    localStorage.setItem('caf_users', JSON.stringify(users));
+    localStorage.setItem('caf_pedidos', JSON.stringify(pedidos));
+    localStorage.setItem('caf_user', JSON.stringify(currentUser));
+  }
+
+  function register() {
+    const name = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim().toLowerCase();
+    const pass = document.getElementById('pass').value;
+    const role = document.getElementById('role').value;
+    if (!name || !email || !pass) return alert('Completa todos los campos');
+    if (users.find(u => u.email === email)) return alert('Ya registrado');
+    const newUser = { name, email, pass, role };
+    users.push(newUser);
+    currentUser = newUser;
+    save();
+    showPanel();
+  }
+
+  function login() {
+    const email = document.getElementById('email').value.trim().toLowerCase();
+    const pass = document.getElementById('pass').value;
+    const u = users.find(u => u.email === email && u.pass === pass);
+    if (!u) return alert('Credenciales incorrectas');
+    currentUser = u;
+    save();
+    showPanel();
+  }
+
+  function logout() {
+    localStorage.removeItem('caf_user');
+    location.reload();
+  }
+
+  function showPanel() {
+    document.getElementById('auth').classList.add('hidden');
+    document.getElementById('panel').classList.remove('hidden');
+    document.getElementById('userName').textContent = currentUser.name;
+    document.getElementById('userRole').textContent = currentUser.role;
+
+    const role = currentUser.role;
+    document.getElementById('clientePanel').classList.toggle('hidden', role !== 'cliente');
+    document.getElementById('empleadoPanel').classList.toggle('hidden', !['barista','cajero','repartidor'].includes(role));
+    document.getElementById('duenoPanel').classList.toggle('hidden', role !== 'dueno');
+
+    renderPedidos();
+  }
+
+  function hacerPedido() {
+    const producto = document.getElementById('pedidoInput').value.trim();
+    if (!producto) return alert('Ingresa un pedido');
+    const pedido = {
+      id: Date.now(),
+      cliente: currentUser.name,
+      producto,
+      estado: 'pendiente'
+    };
+    pedidos.push(pedido);
+    save();
+    document.getElementById('pedidoInput').value = '';
+    alert('Pedido enviado');
+    renderPedidos();
+  }
+
+  function cambiarEstado(id, nuevoEstado) {
+    const p = pedidos.find(p => p.id === id);
+    if (p) p.estado = nuevoEstado;
+    save();
+    renderPedidos();
+  }
+
+  function renderPedidos() {
+    let html = '';
+    pedidos.forEach(p => {
+      html += `<div class="order">
+        <b>${p.producto}</b> - ${p.cliente}<br>
+        Estado: ${p.estado}<br>
+        <button onclick="cambiarEstado(${p.id}, 'en proceso')">En proceso</button>
+        <button onclick="cambiarEstado(${p.id}, 'listo')">Listo</button>
+        <button onclick="cambiarEstado(${p.id}, 'entregado')">Entregado</button>
+      </div>`;
+    });
+    if (['barista','cajero','repartidor'].includes(currentUser.role)) {
+      document.getElementById('listaPedidos').innerHTML = html;
+    } else if (currentUser.role === 'dueno') {
+      document.getElementById('duenoPedidos').innerHTML = html;
+    }
+  }
+
+  if (currentUser) showPanel();
+</script>
+</body>
+</html>
